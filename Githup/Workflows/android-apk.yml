@@ -20,40 +20,48 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract School Management ZIP
+      - name: Extract ZIP
         run: |
           set -e
 
           mkdir -p extracted
 
-          unzip -q school_management_v4_github_ready.zip -d extracted
+          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
 
-          echo "ZIP extracted."
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file lama helin."
+            exit 1
+          fi
 
-          find extracted -maxdepth 3 -type f | head -100
+          echo "ZIP: $ZIP_FILE"
 
-      - name: Find Flutter project
+          unzip -q "$ZIP_FILE" -d extracted
+
+      - name: Find Flutter Project
         run: |
           set -e
 
           PUBSPEC=$(find extracted -type f -name "pubspec.yaml" -print -quit)
 
           if [ -z "$PUBSPEC" ]; then
-            echo "pubspec.yaml lama helin."
+            echo "ERROR: pubspec.yaml lama helin."
             exit 1
           fi
 
           APP_DIR=$(dirname "$PUBSPEC")
 
           echo "Flutter project: $APP_DIR"
+
           echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
 
-      - name: Check project
+      - name: Check Project
         run: |
+          set -e
+
           test -f "$APP_DIR/pubspec.yaml"
           test -f "$APP_DIR/lib/main.dart"
 
-          echo "Project structure is correct."
+          echo "Flutter project structure OK."
 
       - name: Generate Android
         run: |
@@ -63,7 +71,7 @@ jobs:
             --platforms=android \
             --org=com.schoolmanagement
 
-      - name: Get packages
+      - name: Install Dependencies
         run: |
           cd "$APP_DIR"
           flutter pub get
