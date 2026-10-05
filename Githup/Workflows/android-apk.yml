@@ -1,0 +1,85 @@
+name: Android APK Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Extract School Management ZIP
+        run: |
+          set -e
+
+          mkdir -p extracted
+
+          unzip -q school_management_v4_github_ready.zip -d extracted
+
+          echo "ZIP extracted."
+
+          find extracted -maxdepth 3 -type f | head -100
+
+      - name: Find Flutter project
+        run: |
+          set -e
+
+          PUBSPEC=$(find extracted -type f -name "pubspec.yaml" -print -quit)
+
+          if [ -z "$PUBSPEC" ]; then
+            echo "pubspec.yaml lama helin."
+            exit 1
+          fi
+
+          APP_DIR=$(dirname "$PUBSPEC")
+
+          echo "Flutter project: $APP_DIR"
+          echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
+
+      - name: Check project
+        run: |
+          test -f "$APP_DIR/pubspec.yaml"
+          test -f "$APP_DIR/lib/main.dart"
+
+          echo "Project structure is correct."
+
+      - name: Generate Android
+        run: |
+          cd "$APP_DIR"
+
+          flutter create . \
+            --platforms=android \
+            --org=com.schoolmanagement
+
+      - name: Get packages
+        run: |
+          cd "$APP_DIR"
+          flutter pub get
+
+      - name: Build APK
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          cd "$APP_DIR"
+
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=https://yeqpkotyeqvajxanlzpj.supabase.co \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-management-v4-apk
+          path: extracted/**/build/app/outputs/flutter-apk/app-release.apk
