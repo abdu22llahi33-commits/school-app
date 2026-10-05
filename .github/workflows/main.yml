@@ -1,0 +1,84 @@
+name: Android APK Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Extract ZIP
+        run: |
+          set -e
+          mkdir -p extracted
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file lama helin."
+            exit 1
+          fi
+
+          echo "Using: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+
+      - name: Find Flutter Project
+        run: |
+          set -e
+
+          PUBSPEC=$(find extracted -type f -name "pubspec.yaml" -print -quit)
+
+          if [ -z "$PUBSPEC" ]; then
+            echo "ERROR: pubspec.yaml lama helin."
+            exit 1
+          fi
+
+          APP_DIR=$(dirname "$PUBSPEC")
+
+          echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
+          echo "Project found: $APP_DIR"
+
+      - name: Check Project
+        run: |
+          test -f "$APP_DIR/pubspec.yaml"
+          test -f "$APP_DIR/lib/main.dart"
+          echo "Project structure OK."
+
+      - name: Generate Android
+        run: |
+          cd "$APP_DIR"
+          flutter create . --platforms=android --org=com.schoolmanagement
+
+      - name: Get Dependencies
+        run: |
+          cd "$APP_DIR"
+          flutter pub get
+
+      - name: Build APK
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          cd "$APP_DIR"
+
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=https://yeqpkotyeqvajxanlzpj.supabase.co \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-management-v4-apk
+          path: extracted/**/build/app/outputs/flutter-apk/app-release.apk
