@@ -1,4 +1,4 @@
-name: Android APK Build
+name: School Management V5 APK
 
 on:
   workflow_dispatch:
@@ -20,48 +20,42 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract ZIP
+      - name: Extract V5 ZIP
         run: |
           set -e
 
-          mkdir -p extracted
+          mkdir -p v5_project
 
-          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+          unzip -q school_management_v5_clean_login_dashboard.zip \
+            -d v5_project
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: ZIP file lama helin."
-            exit 1
-          fi
-
-          echo "ZIP: $ZIP_FILE"
-
-          unzip -q "$ZIP_FILE" -d extracted
+          echo "V5 ZIP extracted."
 
       - name: Find Flutter Project
         run: |
           set -e
 
-          PUBSPEC=$(find extracted -type f -name "pubspec.yaml" -print -quit)
+          PUBSPEC=$(find v5_project -type f \
+            -name "pubspec.yaml" -print -quit)
 
           if [ -z "$PUBSPEC" ]; then
-            echo "ERROR: pubspec.yaml lama helin."
+            echo "ERROR: pubspec.yaml not found."
             exit 1
           fi
 
           APP_DIR=$(dirname "$PUBSPEC")
 
           echo "Flutter project: $APP_DIR"
-
           echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
 
-      - name: Check Project
+      - name: Check V5
         run: |
           set -e
 
           test -f "$APP_DIR/pubspec.yaml"
           test -f "$APP_DIR/lib/main.dart"
 
-          echo "Flutter project structure OK."
+          echo "V5 project structure is OK."
 
       - name: Generate Android
         run: |
@@ -76,7 +70,7 @@ jobs:
           cd "$APP_DIR"
           flutter pub get
 
-      - name: Build APK
+      - name: Build V5 APK
         env:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
@@ -86,8 +80,13 @@ jobs:
             --dart-define=SUPABASE_URL=https://yeqpkotyeqvajxanlzpj.supabase.co \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
-      - name: Upload APK
+      - name: Prepare APK
+        run: |
+          cp "$APP_DIR/build/app/outputs/flutter-apk/app-release.apk" \
+            "$GITHUB_WORKSPACE/school-management-v5.apk"
+
+      - name: Upload V5 APK
         uses: actions/upload-artifact@v4
         with:
-          name: school-management-v4-apk
-          path: extracted/**/build/app/outputs/flutter-apk/app-release.apk
+          name: school-management-v5-apk
+          path: school-management-v5.apk
